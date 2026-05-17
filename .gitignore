@@ -1,0 +1,21 @@
+# Ambiente Virtual
+venv/
+env/
+.venv/
+
+# Segredos e Variáveis de Ambiente (NUNCA SUBIR PARA O GITHUB)
+.env
+.env.local
+
+# Cache do Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pastas de IDEs
+.vscode/
+.idea/
+.DS_Store
+
+# Documentação Interna
+system_design.md
