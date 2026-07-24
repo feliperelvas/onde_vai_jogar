@@ -13,28 +13,58 @@ def get_model():
         raise ValueError("Chave de API do Gemini não configurada.")
     
     genai.configure(api_key=api_key)
-    
+
+    # Limita o número de buscas por mensagem para não gastar créditos da Tavily.
+    # Como get_model() é recriado a cada mensagem, este contador zera por pergunta.
+    MAX_BUSCAS = 2
+    contador_buscas = {"n": 0}
+
     def search_web(query: str) -> str:
         """
-        Ferramenta de busca na internet para encontrar notícias precisas sobre onde, que dia e que horas assistir a um jogo de futebol.
-        Exemplo de query: 'jogo do flamengo hoje onde assistir canal'
+        Ferramenta de busca na internet para encontrar notícias precisas sobre futebol:
+        onde assistir, dia, horário, transmissão e em qual campeonato um time joga.
+        Monte a query da forma mais específica possível (inclua o nome do time e a palavra
+        'jogos' ou 'onde assistir'). Exemplos:
+        - 'próximos jogos do vasco tabela horário transmissão'
+        - 'jogo do flamengo hoje onde assistir canal campeonato'
         """
         logger.info(f"Gemini acionou busca via Tavily para: {query}")
+
+        # Corta buscas além do limite: não chama a Tavily e orienta o modelo a responder.
+        contador_buscas["n"] += 1
+        if contador_buscas["n"] > MAX_BUSCAS:
+            logger.info(f"Limite de {MAX_BUSCAS} buscas atingido. Busca ignorada.")
+            return (
+                "Limite de buscas atingido. Responda agora com as informações que já "
+                "obteve nas buscas anteriores. Para qualquer dado que ainda esteja faltando, "
+                "escreva 'não confirmado'."
+            )
+
         try:
             tavily_key = os.getenv("TAVILY_API_KEY")
             if not tavily_key or tavily_key == "COLE_SUA_CHAVE_TAVILY_AQUI":
                 return "Erro: Chave da API do Tavily não configurada."
-            
+
             client = TavilyClient(api_key=tavily_key)
-            # Busca focada em encontrar informações de transmissão de próximos jogos
-            response = client.search(query=query + " próximos jogos horário e onde assistir transmissão", search_depth="basic", max_results=4)
-            
+            # search_depth="basic" custa 1 crédito por busca (advanced custaria ~2) — melhor
+            # para o plano free da Tavily. include_answer e max_results não geram custo extra.
+            response = client.search(
+                query=query,
+                search_depth="basic",
+                max_results=6,
+                include_answer=True,
+            )
+
             results = []
+            # A Tavily devolve um resumo já sintetizado das fontes; ajuda o modelo a acertar.
+            answer = response.get("answer")
+            if answer:
+                results.append(f"Resumo sintetizado das fontes: {answer}")
             for result in response.get("results", []):
                 title = result.get("title", "")
                 content = result.get("content", "")
                 results.append(f"Título: {title}\nResumo da Notícia: {content}")
-                
+
             if not results:
                 return "Nenhum resultado encontrado na web."
             return "\n\n".join(results)
@@ -48,14 +78,28 @@ def get_model():
         model_name="gemini-3.1-flash-lite",
         tools=[search_web],
         system_instruction=(
-            f"Você é o bot 'Onde Vai Jogar' no Telegram.\n"
-            f"A data de hoje é {hoje}. Use esta data como referência para identificar 'hoje', 'amanhã', etc.\n"
-            f"REGRAS ESTRITAS DE RESPOSTA:\n"
-            f"1. Seja extremamente direto. Sem rodeios ou introduções longas.\n"
-            f"2. Informe APENAS: os times da partida, a data do jogo, o horário, e onde assistir (canal/streaming).\n"
-            f"3. NÃO USE NENHUMA formatação Markdown (não use asteriscos **, não use hashtags #). Use apenas texto puro, quebras de linha e emojis.\n"
-            f"4. Se o usuário pedir o 'próximo jogo' e houver um jogo HOJE, informe os dados do jogo de HOJE e também do PRÓXIMO jogo.\n"
-            f"5. Use SEMPRE a ferramenta (search_web) para ter dados exatos. Nunca adivinhe."
+            f"Você é o bot 'Onde Vai Jogar' no Telegram, especialista em transmissões de futebol.\n"
+            f"A data de hoje é {hoje}. Use esta data como referência para identificar 'hoje', 'amanhã', etc.\n\n"
+            f"VOCÊ RESPONDE A DOIS TIPOS DE PERGUNTA:\n"
+            f"A) 'Onde vai passar o jogo do time X?' / 'Qual o próximo jogo?': foque no próximo jogo do time. "
+            f"Se houver um jogo HOJE, informe o de HOJE e também o próximo.\n"
+            f"B) 'Quais os próximos jogos do time X?': liste os próximos jogos (até 5), do mais próximo ao mais distante.\n\n"
+            f"PARA CADA JOGO, INFORME SEMPRE (quando a informação existir):\n"
+            f"- Confronto (Time A x Time B)\n"
+            f"- Campeonato (ex: Brasileirão, Copa do Brasil, Libertadores)\n"
+            f"- Dia da semana e data (ex: Sábado, 26/07)\n"
+            f"- Horário, sempre indicando o fuso (ex: 16h - horário de Brasília)\n"
+            f"- Onde assistir (canal de TV aberta/fechada ou streaming)\n\n"
+            f"REGRAS DE PRECISÃO (MUITO IMPORTANTES):\n"
+            f"1. Use SEMPRE a ferramenta search_web para obter dados atuais. Nunca invente. Se precisar, faça mais de uma busca.\n"
+            f"2. Baseie a resposta apenas no que as fontes disseram. Se as fontes divergirem ou parecerem antigas, avise.\n"
+            f"3. Se não encontrar algum campo (ex: transmissão ainda não definida), escreva 'não confirmado' em vez de chutar.\n"
+            f"4. Ao FINAL da resposta, adicione uma linha 'Confiança: X%' estimando o quão seguro você está da informação, "
+            f"com base em: quantas fontes concordam entre si, se são recentes e se cobrem todos os campos. "
+            f"Fontes que se contradizem ou informação incompleta = confiança mais baixa.\n\n"
+            f"FORMATO DA RESPOSTA:\n"
+            f"1. Seja direto. Sem rodeios ou introduções longas.\n"
+            f"2. NÃO USE NENHUMA formatação Markdown (não use asteriscos **, não use hashtags #). Use apenas texto puro, quebras de linha e emojis."
         )
     )
     return model
