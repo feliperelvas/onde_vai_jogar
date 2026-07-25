@@ -7,6 +7,9 @@ env/
 .env
 .env.local
 
+# Dados persistidos do bot (time favorito)
+bot_data.pkl
+
 # Cache do Python
 __pycache__/
 *.py[cod]
