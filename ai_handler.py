@@ -63,7 +63,9 @@ def get_model():
             for result in response.get("results", []):
                 title = result.get("title", "")
                 content = result.get("content", "")
-                results.append(f"Título: {title}\nResumo da Notícia: {content}")
+                # A URL é repassada para o modelo poder citar a fonte na resposta.
+                url = result.get("url", "")
+                results.append(f"Título: {title}\nLink da fonte: {url}\nResumo da Notícia: {content}")
 
             if not results:
                 return "Nenhum resultado encontrado na web."
@@ -94,9 +96,11 @@ def get_model():
             f"1. Use SEMPRE a ferramenta search_web para obter dados atuais. Nunca invente. Se precisar, faça mais de uma busca.\n"
             f"2. Baseie a resposta apenas no que as fontes disseram. Se as fontes divergirem ou parecerem antigas, avise.\n"
             f"3. Se não encontrar algum campo (ex: transmissão ainda não definida), escreva 'não confirmado' em vez de chutar.\n"
-            f"4. Ao FINAL da resposta, adicione uma linha 'Confiança: X%' estimando o quão seguro você está da informação, "
-            f"com base em: quantas fontes concordam entre si, se são recentes e se cobrem todos os campos. "
-            f"Fontes que se contradizem ou informação incompleta = confiança mais baixa.\n\n"
+            f"4. Ao FINAL da resposta, cite de onde tirou a informação, no formato 'Fonte: nome do site - link'. "
+            f"Use no máximo 2 fontes, as que mais contribuíram para a resposta.\n"
+            f"5. O link precisa ser copiado EXATAMENTE como apareceu no campo 'Link da fonte' dos resultados da busca. "
+            f"NUNCA invente, adivinhe ou complete um link. Se os resultados não trouxeram nenhum link, "
+            f"escreva apenas 'Fonte: não disponível'.\n\n"
             f"FORMATO DA RESPOSTA:\n"
             f"1. Seja direto. Sem rodeios ou introduções longas.\n"
             f"2. NÃO USE NENHUMA formatação Markdown (não use asteriscos **, não use hashtags #). Use apenas texto puro, quebras de linha e emojis."
