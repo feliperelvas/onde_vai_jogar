@@ -6,8 +6,12 @@ import google.generativeai as genai
 
 logger = logging.getLogger(__name__)
 
-def get_model():
-    """Configura o Gemini e a ferramenta de busca."""
+def get_model(dominios: list[str] | None = None):
+    """Configura o Gemini e a ferramenta de busca.
+
+    dominios: se informado, a busca dá preferência a esses sites (include_domains
+    da Tavily). Serve para os comandos apontarem para fontes boas em cada caso.
+    """
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key or api_key == "COLE_SUA_CHAVE_AQUI":
         raise ValueError("Chave de API do Gemini não configurada.")
@@ -48,12 +52,19 @@ def get_model():
             client = TavilyClient(api_key=tavily_key)
             # search_depth="basic" custa 1 crédito por busca (advanced custaria ~2) — melhor
             # para o plano free da Tavily. include_answer e max_results não geram custo extra.
-            response = client.search(
+            parametros = dict(
                 query=query,
                 search_depth="basic",
                 max_results=6,
                 include_answer=True,
             )
+            # Atenção: include_domains é uma preferência, não um filtro rígido — em testes a
+            # Tavily devolveu outros domínios quando a query casava mal com os sites pedidos.
+            # Por isso sempre passamos uma lista, nunca um site só.
+            if dominios:
+                parametros["include_domains"] = dominios
+                logger.info(f"Busca com preferência de domínios: {dominios}")
+            response = client.search(**parametros)
 
             results = []
             # A Tavily devolve um resumo já sintetizado das fontes; ajuda o modelo a acertar.
@@ -87,13 +98,17 @@ def get_model():
             f"Se houver um jogo HOJE, informe o de HOJE e também o próximo.\n"
             f"   EXCEÇÃO: se o usuário perguntar especificamente sobre HOJE, responda apenas sobre o jogo de hoje "
             f"e não cite nenhum jogo futuro, nem mesmo o próximo.\n"
-            f"B) 'Quais os próximos jogos do time X?': liste os próximos jogos (até 5), do mais próximo ao mais distante.\n\n"
+            f"B) 'Quais os próximos jogos do time X?': liste os próximos jogos (até 5), do mais próximo ao mais distante.\n"
+            f"   A transmissão quase nunca está definida com antecedência: neste caso informe 'Onde assistir' apenas "
+            f"quando a fonte trouxer o canal e simplesmente OMITA o campo quando não houver. "
+            f"Não repita 'não confirmado' em todos os jogos — o que importa aqui é confronto, campeonato, data e horário.\n\n"
             f"PARA CADA JOGO, INFORME SEMPRE (quando a informação existir):\n"
             f"- Confronto (Time A x Time B)\n"
             f"- Campeonato (ex: Brasileirão, Copa do Brasil, Libertadores)\n"
             f"- Dia da semana e data (ex: Sábado, 26/07)\n"
             f"- Horário, sempre indicando o fuso (ex: 16h - horário de Brasília)\n"
-            f"- Onde assistir (canal de TV aberta/fechada ou streaming)\n\n"
+            f"- Onde assistir (canal de TV aberta/fechada ou streaming) — obrigatório no tipo A; "
+            f"no tipo B, só quando a fonte trouxer\n\n"
             f"REGRAS DE PRECISÃO (MUITO IMPORTANTES):\n"
             f"1. Use SEMPRE a ferramenta search_web para obter dados atuais. Nunca invente. Se precisar, faça mais de uma busca.\n"
             f"2. Baseie a resposta apenas no que as fontes disseram. Se as fontes divergirem ou parecerem antigas, avise.\n"
@@ -116,10 +131,13 @@ def get_model():
     )
     return model
 
-def process_message(user_message: str) -> str:
-    """Envia a mensagem para o Gemini (com função de busca automática) e retorna a resposta."""
+def process_message(user_message: str, dominios: list[str] | None = None) -> str:
+    """Envia a mensagem para o Gemini (com função de busca automática) e retorna a resposta.
+
+    dominios: sites preferidos na busca, definidos por quem chama (ver bot.py).
+    """
     try:
-        model = get_model()
+        model = get_model(dominios)
         # Inicia um chat com enable_automatic_function_calling=True
         # Isso faz o Gemini executar a função search_web por conta própria e formular a resposta
         chat = model.start_chat(enable_automatic_function_calling=True)

@@ -24,6 +24,23 @@ logger = logging.getLogger(__name__)
 # Carrega as variáveis de ambiente do arquivo .env
 load_dotenv()
 
+# Sites preferidos em cada tipo de busca. Sempre uma lista, nunca um domínio só:
+# o include_domains da Tavily é preferência, não filtro rígido, e restringir demais
+# faz a busca voltar vazia (ou escapar para sites sem relação nenhuma).
+# /hoje precisa de canal de transmissão -> imprensa esportiva que cobre jogo a jogo.
+DOMINIOS_HOJE = ["365scores.com", "ge.globo.com", "lance.com.br", "trivela.com.br"]
+# /proximos precisa de calendário -> páginas de agenda/tabela.
+DOMINIOS_PROXIMOS = ["ge.globo.com", "lance.com.br", "espn.com.br"]
+# Site oficial de clube só entra quando o time pedido é aquele clube, senão a busca
+# devolve páginas do clube errado (ex: vasco.com.br respondendo sobre o Palmeiras).
+SITES_OFICIAIS = {"vasco": "vasco.com.br"}
+
+def dominios_para_proximos(time: str) -> list[str]:
+    """Acrescenta o site oficial do clube à busca de calendário, quando houver."""
+    time_normalizado = time.casefold()
+    oficiais = [site for apelido, site in SITES_OFICIAIS.items() if apelido in time_normalizado]
+    return oficiais + DOMINIOS_PROXIMOS
+
 def acesso_liberado(update: Update) -> bool:
     """Verifica se o usuário tem permissão para usar o bot (bot privado)."""
     user_id = str(update.effective_user.id)
@@ -34,7 +51,8 @@ def acesso_liberado(update: Update) -> bool:
         return False
     return True
 
-async def responder_com_ia(update: Update, context: ContextTypes.DEFAULT_TYPE, pergunta: str):
+async def responder_com_ia(update: Update, context: ContextTypes.DEFAULT_TYPE, pergunta: str,
+                           dominios: list[str] | None = None):
     """Envia a pergunta para a IA mantendo o 'digitando...' ativo e responde ao usuário."""
     chat_id = update.effective_chat.id
 
@@ -53,7 +71,7 @@ async def responder_com_ia(update: Update, context: ContextTypes.DEFAULT_TYPE, p
     try:
         # Roda o processamento da IA em uma Thread separada para não travar o bot inteiro
         loop = asyncio.get_running_loop()
-        response_text = await loop.run_in_executor(None, process_message, pergunta)
+        response_text = await loop.run_in_executor(None, process_message, pergunta, dominios)
     finally:
         # Quando a resposta chegar, para de mostrar 'digitando'
         typing_task.cancel()
@@ -150,7 +168,8 @@ async def hoje(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context,
         f"O {time} joga hoje? Responda SOMENTE sobre o jogo de hoje: confronto, campeonato, "
         f"horário e onde assistir. Se não houver jogo hoje, diga apenas que não há jogo hoje "
-        f"e não cite nenhum jogo futuro."
+        f"e não cite nenhum jogo futuro.",
+        dominios=DOMINIOS_HOJE,
     )
 
 async def proximos(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -170,7 +189,10 @@ async def proximos(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await responder_com_ia(
         update,
         context,
-        f"Quais são os próximos jogos do {time}? Liste até 5."
+        f"Quais são os próximos jogos do {time}? Liste até 5, com confronto, campeonato, "
+        f"dia da semana, data e horário. Não preciso da transmissão aqui: só cite o canal "
+        f"se a fonte trouxer.",
+        dominios=dominios_para_proximos(time),
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
