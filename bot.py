@@ -163,7 +163,9 @@ async def hoje(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context,
         f"O {time} joga hoje? Responda SOMENTE sobre o jogo de hoje: confronto, campeonato, "
         f"horário e onde assistir. Se não houver jogo hoje, diga apenas que não há jogo hoje "
-        f"e não cite nenhum jogo futuro.",
+        f"e não cite nenhum jogo futuro. "
+        f"IMPORTANTE: ao chamar search_web, a query DEVE conter o nome do time e a expressão "
+        f"'onde assistir' — sem isso a busca não devolve o canal de transmissão.",
         dominios=DOMINIOS_HOJE,
     )
 
