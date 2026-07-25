@@ -148,8 +148,9 @@ async def hoje(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await responder_com_ia(
         update,
         context,
-        f"O {time} joga hoje? Informe confronto, campeonato, horário e onde assistir. "
-        f"Se não houver jogo hoje, diga isso e informe o próximo jogo."
+        f"O {time} joga hoje? Responda SOMENTE sobre o jogo de hoje: confronto, campeonato, "
+        f"horário e onde assistir. Se não houver jogo hoje, diga apenas que não há jogo hoje "
+        f"e não cite nenhum jogo futuro."
     )
 
 async def proximos(update: Update, context: ContextTypes.DEFAULT_TYPE):

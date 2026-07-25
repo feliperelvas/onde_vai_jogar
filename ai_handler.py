@@ -85,6 +85,8 @@ def get_model():
             f"VOCÊ RESPONDE A DOIS TIPOS DE PERGUNTA:\n"
             f"A) 'Onde vai passar o jogo do time X?' / 'Qual o próximo jogo?': foque no próximo jogo do time. "
             f"Se houver um jogo HOJE, informe o de HOJE e também o próximo.\n"
+            f"   EXCEÇÃO: se o usuário perguntar especificamente sobre HOJE, responda apenas sobre o jogo de hoje "
+            f"e não cite nenhum jogo futuro, nem mesmo o próximo.\n"
             f"B) 'Quais os próximos jogos do time X?': liste os próximos jogos (até 5), do mais próximo ao mais distante.\n\n"
             f"PARA CADA JOGO, INFORME SEMPRE (quando a informação existir):\n"
             f"- Confronto (Time A x Time B)\n"
