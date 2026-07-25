@@ -29,17 +29,12 @@ load_dotenv()
 # faz a busca voltar vazia (ou escapar para sites sem relação nenhuma).
 # /hoje precisa de canal de transmissão -> imprensa esportiva que cobre jogo a jogo.
 DOMINIOS_HOJE = ["365scores.com", "ge.globo.com", "lance.com.br", "trivela.com.br"]
-# /proximos precisa de calendário -> páginas de agenda/tabela.
-DOMINIOS_PROXIMOS = ["ge.globo.com", "lance.com.br", "espn.com.br"]
-# Site oficial de clube só entra quando o time pedido é aquele clube, senão a busca
-# devolve páginas do clube errado (ex: vasco.com.br respondendo sobre o Palmeiras).
-SITES_OFICIAIS = {"vasco": "vasco.com.br"}
-
-def dominios_para_proximos(time: str) -> list[str]:
-    """Acrescenta o site oficial do clube à busca de calendário, quando houver."""
-    time_normalizado = time.casefold()
-    oficiais = [site for apelido, site in SITES_OFICIAIS.items() if apelido in time_normalizado]
-    return oficiais + DOMINIOS_PROXIMOS
+# /proximos precisa de calendário -> páginas de agenda/tabela. A ESPN mantém uma
+# página de calendário por time (/futebol/time/calendario/_/id/<id>/<time>), que a
+# busca encontra sozinha para qualquer clube.
+# Sites oficiais de clube foram testados aqui e pioraram o resultado: a busca passava
+# a devolver páginas de outros times e das categorias de base.
+DOMINIOS_PROXIMOS = ["espn.com.br", "ge.globo.com", "lance.com.br"]
 
 def acesso_liberado(update: Update) -> bool:
     """Verifica se o usuário tem permissão para usar o bot (bot privado)."""
@@ -192,7 +187,7 @@ async def proximos(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Quais são os próximos jogos do {time}? Liste até 5, com confronto, campeonato, "
         f"dia da semana, data e horário. Não preciso da transmissão aqui: só cite o canal "
         f"se a fonte trouxer.",
-        dominios=dominios_para_proximos(time),
+        dominios=DOMINIOS_PROXIMOS,
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
