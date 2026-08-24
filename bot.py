@@ -1,6 +1,7 @@
 import os
 import logging
 import asyncio
+from functools import partial
 from dotenv import load_dotenv
 from telegram import BotCommand, Update
 from telegram.ext import (
@@ -29,6 +30,13 @@ load_dotenv()
 # faz a busca voltar vazia (ou escapar para sites sem relação nenhuma).
 # /hoje precisa de canal de transmissão -> imprensa esportiva que cobre jogo a jogo.
 DOMINIOS_HOJE = ["365scores.com", "ge.globo.com", "lance.com.br", "trivela.com.br"]
+# ...e precisa da matéria de HOJE, por isso busca no índice de notícias (topic="news")
+# com janela curta. Na web geral, a busca só devolvia páginas de "onde assistir" antigas,
+# cujo snippet é menu/manchete e nunca cita o jogo do dia — o bot então respondia que
+# não havia jogo. Com "news" os resultados vêm com data de publicação e ordenados por
+# recência. Não custa crédito extra (o preço é do search_depth, que segue "basic").
+TOPICO_HOJE = "news"
+DIAS_HOJE = 2
 # /proximos precisa de calendário -> páginas de agenda/tabela. A ESPN mantém uma
 # página de calendário por time (/futebol/time/calendario/_/id/<id>/<time>), que a
 # busca encontra sozinha para qualquer clube.
@@ -47,7 +55,8 @@ def acesso_liberado(update: Update) -> bool:
     return True
 
 async def responder_com_ia(update: Update, context: ContextTypes.DEFAULT_TYPE, pergunta: str,
-                           dominios: list[str] | None = None):
+                           dominios: list[str] | None = None, topico: str | None = None,
+                           dias: int | None = None):
     """Envia a pergunta para a IA mantendo o 'digitando...' ativo e responde ao usuário."""
     chat_id = update.effective_chat.id
 
@@ -66,7 +75,9 @@ async def responder_com_ia(update: Update, context: ContextTypes.DEFAULT_TYPE, p
     try:
         # Roda o processamento da IA em uma Thread separada para não travar o bot inteiro
         loop = asyncio.get_running_loop()
-        response_text = await loop.run_in_executor(None, process_message, pergunta, dominios)
+        response_text = await loop.run_in_executor(
+            None, partial(process_message, pergunta, dominios, topico, dias)
+        )
     finally:
         # Quando a resposta chegar, para de mostrar 'digitando'
         typing_task.cancel()
@@ -164,9 +175,12 @@ async def hoje(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"O {time} joga hoje? Responda SOMENTE sobre o jogo de hoje: confronto, campeonato, "
         f"horário e onde assistir. Se não houver jogo hoje, diga apenas que não há jogo hoje "
         f"e não cite nenhum jogo futuro. "
-        f"IMPORTANTE: ao chamar search_web, a query DEVE conter o nome do time e a expressão "
-        f"'onde assistir' — sem isso a busca não devolve o canal de transmissão.",
+        f"IMPORTANTE: ao chamar search_web, use exatamente esta query: "
+        f"'jogo do {time} hoje onde assistir'. Não acrescente a data nem 'próximos jogos' — "
+        f"testado: qualquer um dos dois faz a busca devolver notícias de jogos antigos.",
         dominios=DOMINIOS_HOJE,
+        topico=TOPICO_HOJE,
+        dias=DIAS_HOJE,
     )
 
 async def proximos(update: Update, context: ContextTypes.DEFAULT_TYPE):
